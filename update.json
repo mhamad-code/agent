@@ -1,0 +1,17 @@
+{
+  "versionCode": 20414,
+  "versionName": "2.4.14",
+  "publishedAt": "2026-11-27T00:00:00Z",
+  "notes": [
+    "Message tree with branches, editing and regeneration",
+    "Attachments, drafts and an offline queue",
+    "Context budget, compaction and local memory",
+    "Update check, terminal, agent tools and approvals"
+  ],
+  "apk": {
+    "url": "https://github.com/mhamad-code/Agent/releases/latest/download/Agent-2.4.14.apk",
+    "sha256": "",
+    "sizeBytes": 0
+  },
+  "mirrors": []
+}

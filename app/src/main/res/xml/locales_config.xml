@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The app ships English only at this stage. Listing a single locale keeps Android from
+  falling back to the device language (Arabic) and mirroring the layout, which is what
+  made the drawer open from the right. Add locales here when translations land.
+-->
+<locale-config xmlns:android="http://schemas.android.com/apk/res/android">
+    <locale android:name="en" />
+</locale-config>

@@ -1,0 +1,285 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Agent</string>
+
+    <!-- Version, always filled from BuildConfig.VERSION_NAME. -->
+    <string name="app_version_footer">Agent %1$s</string>
+    <string name="about_version">Version %1$s</string>
+
+    <!-- Drawer -->
+    <string name="drawer_open">Open menu</string>
+    <string name="drawer_new_chat">New Chat</string>
+    <string name="drawer_features">Features</string>
+    <string name="drawer_main">Main</string>
+    <string name="drawer_more">More</string>
+    <string name="drawer_your_chats">Your chats</string>
+    <string name="drawer_chat">Chat</string>
+    <string name="drawer_code">Code</string>
+    <string name="drawer_projects">Projects</string>
+    <string name="drawer_skills">Skills</string>
+    <string name="drawer_mcp">MCP Servers</string>
+    <string name="drawer_checkpoints">Checkpoints</string>
+    <string name="drawer_commands">Commands</string>
+    <string name="drawer_git">Git</string>
+    <string name="drawer_hooks">Hooks</string>
+    <string name="drawer_subagents">Subagents</string>
+    <string name="drawer_search">Search</string>
+    <string name="drawer_usage">Usage</string>
+    <string name="drawer_settings">Settings</string>
+    <string name="drawer_no_chats">Chats you start appear here</string>
+    <string name="drawer_search_chats">Search chats</string>
+    <string name="chat_rename">Rename</string>
+    <string name="chat_delete">Delete</string>
+    <string name="chat_rename_title">Rename chat</string>
+    <string name="chat_rename_save">Save</string>
+    <string name="chat_delete_title">Delete this chat?</string>
+    <string name="chat_delete_body">The conversation and its messages are removed from this device.</string>
+    <string name="cancel">Cancel</string>
+    <string name="delete">Delete</string>
+
+    <!-- Conversation groups -->
+    <string name="group_pinned">Pinned</string>
+    <string name="group_today">Today</string>
+    <string name="group_yesterday">Yesterday</string>
+    <string name="group_previous_7">Previous 7 days</string>
+    <string name="group_older">Older</string>
+    <string name="chat_pin">Pin</string>
+    <string name="chat_unpin">Unpin</string>
+    <string name="chat_export">Export</string>
+    <string name="chat_export_markdown">Markdown</string>
+    <string name="chat_export_json">JSON</string>
+    <string name="chat_export_all_branches">Include every branch</string>
+    <string name="chat_export_title">Export conversation</string>
+    <string name="chat_conversation_prompt">Conversation instructions</string>
+    <string name="chat_conversation_prompt_hint">Added after the global instructions</string>
+    <string name="chat_conversation_prompt_save">Save instructions</string>
+    <string name="export_share_title">Share conversation</string>
+
+    <!-- Home / chat -->
+    <string name="home_welcome_back">WELCOME BACK</string>
+    <string name="home_tagline">Bring your ideas to life today</string>
+    <string name="home_new_project">New Project</string>
+    <string name="home_new_project_sub">Start from a template</string>
+    <string name="home_code_mode">Code Mode</string>
+    <string name="home_code_mode_sub">Terminal, editor and browser</string>
+    <string name="home_install_skill">Install Skill</string>
+    <string name="home_install_skill_sub">From a zip file or a link</string>
+    <string name="empty_continue_chat">Continue “%1$s”</string>
+    <string name="empty_continue_sub">Pick up the last conversation</string>
+    <string name="composer_hint">Ask me anything…</string>
+    <string name="composer_send">Send</string>
+    <string name="composer_stop">Stop</string>
+    <string name="composer_tools">Tools</string>
+    <string name="composer_deep_think">Deep Think</string>
+    <string name="composer_deep_think_on">Deep Think on</string>
+    <string name="composer_attach">Attach</string>
+    <string name="composer_voice">Voice input</string>
+    <string name="composer_expand">Open the full editor</string>
+    <string name="editor_title">Your message</string>
+    <string name="editor_done">Done</string>
+    <string name="chat_thinking">Thinking…</string>
+    <string name="chat_stopped">Stopped</string>
+    <string name="chat_retry">Retry</string>
+    <string name="chat_try_again">Try again</string>
+    <string name="chat_continue">Continue</string>
+    <string name="chat_empty_title">Start a conversation</string>
+    <string name="chat_empty_body">Ask anything. Replies stream in and stay on this device.</string>
+    <string name="chat_jump_latest">Jump to latest</string>
+    <string name="chat_summary_label">Summary of the earlier conversation</string>
+
+    <!-- Message actions -->
+    <string name="action_copy">Copy</string>
+    <string name="action_select_text">Select text</string>
+    <string name="action_share">Share</string>
+    <string name="action_regenerate">Regenerate</string>
+    <string name="action_save_memory">Save to memory</string>
+    <string name="action_delete">Delete</string>
+    <string name="action_edit_resend">Edit and resend</string>
+    <string name="action_more">More actions</string>
+    <string name="action_copied">Copied</string>
+    <string name="action_prev_branch">Previous version</string>
+    <string name="action_next_branch">Next version</string>
+    <string name="message_deleted">Message deleted</string>
+    <string name="chat_deleted">Chat deleted</string>
+    <string name="message_undo">Undo</string>
+    <string name="message_select_title">Select text</string>
+    <string name="message_edit_title">Edit your message</string>
+    <string name="message_share_title">Share message</string>
+    <string name="reasoning_thinking">Thinking</string>
+    <string name="reasoning_thought_for">Thought for %1$d s</string>
+    <string name="reasoning_expand">Show reasoning</string>
+    <string name="reasoning_collapse">Hide reasoning</string>
+    <string name="reasoning_label">Reasoning</string>
+
+    <!-- Errors -->
+    <string name="error_no_internet">No internet connection. Check your network and try again.</string>
+    <string name="error_timeout">The request timed out. Try again.</string>
+    <string name="error_rate_limit">The free model is rate limited. Wait a moment and try again.</string>
+    <string name="error_rate_limit_retrying">Rate limited. Retrying in a moment…</string>
+    <string name="error_server">The provider had a server error. Try again.</string>
+    <string name="error_model_gone">This model is no longer available. Pick another one.</string>
+    <string name="error_unknown">Something went wrong. Try again.</string>
+    <string name="error_choose_model">Choose another model</string>
+
+    <!-- Model picker and capabilities -->
+    <string name="models_title">Choose a model</string>
+    <string name="models_auto_free">Auto Free</string>
+    <string name="models_gateway">Kilo Gateway</string>
+    <string name="models_free_badge">Free</string>
+    <string name="models_refresh">Refresh models</string>
+    <string name="models_loading">Loading models…</string>
+    <string name="models_offline">Showing the cached list (offline)</string>
+    <string name="models_empty">No models available yet</string>
+    <string name="models_context">%1$s context</string>
+    <string name="models_vision">Images</string>
+    <string name="models_reasoning">Reasoning</string>
+    <string name="model_no_images">This model does not read images</string>
+    <string name="model_no_reasoning">This model does not report reasoning</string>
+
+    <!-- First run privacy notice -->
+    <string name="privacy_title">Before you start</string>
+    <string name="privacy_heading">About the free model</string>
+    <string name="privacy_body">Messages you send to the free cloud model leave this device and may be logged by the provider to improve their services. Do not send personal or confidential data. Your chats and settings are stored on this device only.</string>
+    <string name="privacy_accept">I understand</string>
+    <string name="privacy_attachments">Attachments leave your device when you send them to this provider. They stay on this device until then.</string>
+
+    <!-- Markdown / code -->
+    <string name="code_copy">Copy</string>
+    <string name="code_copied">Copied</string>
+    <string name="code_wrap">Wrap lines</string>
+    <string name="code_wrap_on">Wrap: on</string>
+    <string name="code_wrap_off">Wrap: off</string>
+    <string name="code_show_all">Show all %1$d lines</string>
+    <string name="link_open_title">Open this link?</string>
+    <string name="link_open_body">%1$s opens in your browser and leaves the app.</string>
+    <string name="link_open">Open</string>
+    <string name="image_remote_alt">Image: %1$s</string>
+    <string name="image_load">Load image</string>
+
+    <!-- Input, drafts, attachments -->
+    <string name="attach_image">Attach an image</string>
+    <string name="attach_file">Attach a file</string>
+    <string name="attachment_remove">Remove attachment</string>
+    <string name="attachment_image">Image</string>
+    <string name="attachment_file">File</string>
+    <string name="notice_attachment_limit">You can attach up to five items to one message.</string>
+    <string name="notice_attachment_too_large">That file is larger than 10 MB.</string>
+    <string name="notice_attachment_failed">That file could not be read. %1$s</string>
+    <string name="notice_no_vision">This model does not read images. Pick a vision model first.</string>
+    <string name="draft_saved">Draft saved</string>
+
+    <!-- Slash commands -->
+    <string name="slash_title">Commands</string>
+    <string name="slash_needs_tools">Needs project tools</string>
+    <string name="slash_disabled">Not available yet</string>
+    <string name="command_compact_description">Shorten the chat context</string>
+    <string name="command_new_description">Start a new chat</string>
+    <string name="command_init_description">Create AGENTS.md</string>
+    <string name="command_plan_description">Plan before editing</string>
+    <string name="command_review_description">Review the changes</string>
+    <string name="command_test_description">Run the tests</string>
+    <string name="command_needs_tools">Needs project tools</string>
+    <string name="command_add">Add command</string>
+    <string name="command_name">Name</string>
+    <string name="command_name_hint">release</string>
+    <string name="command_prompt">Prompt</string>
+    <string name="command_prompt_hint">Prepare a release for {{version}}</string>
+    <string name="command_description">Description</string>
+    <string name="commands_title">Slash commands</string>
+    <string name="commands_subtitle">Type / in the chat</string>
+    <string name="commands_built_in">Built in</string>
+    <string name="commands_yours">Yours</string>
+    <string name="commands_empty">No commands of your own yet</string>
+    <string name="command_fill_title">Fill in the values</string>
+    <string name="command_delete">Delete command</string>
+    <string name="command_save">Save command</string>
+    <string name="command_insert">Insert into the chat</string>
+
+    <!-- Tools -->
+    <string name="tools_title">Tools</string>
+    <string name="tools_not_available">Not available yet</string>
+    <string name="tools_web">Web search</string>
+    <string name="tools_web_sub">SearXNG</string>
+    <string name="tools_browser">Browser</string>
+    <string name="tools_terminal">Terminal</string>
+    <string name="tools_mcp">MCP: github</string>
+    <string name="tools_skills">Skills</string>
+    <string name="tools_deep_think_sub">Spend more time reasoning</string>
+
+    <!-- Offline -->
+    <string name="offline_banner">No connection. Your message is saved and will be sent when you are back online.</string>
+    <string name="offline_send_now">Send now</string>
+    <string name="offline_waiting">Waiting for connection</string>
+    <string name="notice_sent_after_connect">Back online. Your message was sent.</string>
+
+    <!-- Context -->
+    <string name="context_title">Context</string>
+    <string name="context_used">%1$d of %2$s</string>
+    <string name="context_percent">%1$d%%</string>
+    <string name="context_system">System prompt</string>
+    <string name="context_memory">Memory</string>
+    <string name="context_messages">Messages</string>
+    <string name="context_attachments">Attachments</string>
+    <string name="context_compact">Compact</string>
+    <string name="context_almost_full">Context almost full</string>
+    <string name="context_almost_full_body">Compact the conversation to keep replies accurate.</string>
+    <string name="context_restore">Restore compacted messages</string>
+    <string name="context_estimated">Estimated, four characters per token</string>
+    <string name="context_open">Show context usage</string>
+
+    <!-- Memory -->
+    <string name="memory_title">Memory</string>
+    <string name="memory_subtitle">Stored only on this device</string>
+    <string name="memory_add">Add a memory</string>
+    <string name="memory_empty">Nothing saved yet</string>
+    <string name="memory_edit_title">Edit memory</string>
+    <string name="memory_new_title">New memory</string>
+    <string name="memory_delete">Delete memory</string>
+    <string name="memory_clear">Clear all memory</string>
+    <string name="memory_save">Save</string>
+    <string name="memory_off">Memory is off in Chat settings</string>
+
+    <!-- Chat settings -->
+    <string name="chat_settings">Chat</string>
+    <string name="chat_settings_subtitle">Input, replies and context</string>
+    <string name="setting_enter_send">Enter sends</string>
+    <string name="setting_enter_send_sub">Shift and Enter adds a new line</string>
+    <string name="setting_auto_scroll">Follow the reply</string>
+    <string name="setting_auto_scroll_sub">Scroll while a reply streams</string>
+    <string name="setting_reasoning_expanded">Reasoning expanded</string>
+    <string name="setting_reasoning_expanded_sub">Show the reasoning open by default</string>
+    <string name="setting_text_size">Text size</string>
+    <string name="text_size_small">Small</string>
+    <string name="text_size_normal">Normal</string>
+    <string name="text_size_large">Large</string>
+    <string name="setting_auto_titles">Automatic titles</string>
+    <string name="setting_auto_titles_sub">Name a chat from its first reply</string>
+    <string name="setting_haptics">Haptics</string>
+    <string name="setting_haptics_sub">A light tap on send, stop and copy</string>
+    <string name="setting_memory">Memory</string>
+    <string name="setting_memory_sub">Add saved memories to the prompt</string>
+    <string name="setting_system_prompt">System prompt</string>
+    <string name="setting_system_prompt_sub">Sent before every conversation</string>
+    <string name="setting_voice_language">Voice language</string>
+    <string name="voice_language_en">English</string>
+    <string name="voice_language_ar">Arabic</string>
+    <string name="voice_listening">Listening…</string>
+    <string name="voice_unavailable">No speech recognizer on this device</string>
+    <string name="voice_permission_denied">Microphone access was denied. Allow it in the system settings to dictate.</string>
+
+    <!-- Search -->
+    <string name="search_title">Search</string>
+    <string name="search_hint">Search every conversation</string>
+    <string name="search_no_results">No matches</string>
+    <string name="search_results">%1$d matches</string>
+
+    <!-- Notices -->
+    <string name="notice_saved_to_memory">Saved to memory</string>
+    <string name="notice_compacting">Compacting the conversation…</string>
+    <string name="notice_compacted">Conversation compacted</string>
+    <string name="notice_compact_failed">Nothing to compact yet</string>
+    <string name="notice_compaction_restored">Compacted messages restored</string>
+    <string name="notice_exported">Exported</string>
+    <string name="notice_export_failed">Export failed. %1$s</string>
+    <string name="notice_committed">Saved</string>
+</resources>
