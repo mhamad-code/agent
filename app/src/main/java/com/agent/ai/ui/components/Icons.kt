@@ -59,6 +59,8 @@ object AgentIcons {
     val Brain = listOf("M12 4a4 4 0 0 0-4 4 4 4 0 0 0-1 7 4 4 0 0 0 5 4M12 4a4 4 0 0 1 4 4 4 4 0 0 1 1 7 4 4 0 0 1-5 4M12 4v15")
     val Search = listOf("M10 4a6 6 0 1 0 0 12 6 6 0 0 0 0-12M15 15l5 5")
     val X = listOf("M6 6l12 12M18 6L6 18")
+    val Alert = listOf("M12 4l9 16H3zM12 10v4M12 17h.01")
+    val Clipboard = listOf("M9 4h6v3H9zM7 5H5v16h14V5h-2", "M9 12h6M9 16h4")
     val Copy = listOf("M9 9h10v12H9zM5 15V3h10")
     val Refresh = listOf("M20 12a8 8 0 1 1-2.4-5.7M20 4v4h-4")
     val More = listOf("M6 12h.01M12 12h.01M18 12h.01")

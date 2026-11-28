@@ -7,11 +7,13 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.unit.LayoutDirection
+import com.agent.ai.terminal.AgentAppContext
 import com.agent.ai.ui.AgentApp
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        AgentAppContext.set(applicationContext)
         enableEdgeToEdge()
         setContent {
             // The app is English only for now, so the whole tree is forced to left to

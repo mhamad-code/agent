@@ -6,6 +6,12 @@
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <!-- Voice input uses the system speech recognizer. -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <!-- The update system installs the downloaded APK through the PackageInstaller. -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
+    <!-- The terminal keeps its shell alive in a foreground service. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <queries>
         <intent>
@@ -28,6 +34,17 @@
             android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|uiMode"
             android:windowSoftInputMode="adjustResize"
             android:theme="@style/Theme.Agent" />
+
+        <!-- Keeps a running shell alive while the app is in the background. -->
+        <service
+            android:name=".terminal.TerminalSessionService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
+
+        <!-- Records the result of an update install session. -->
+        <receiver
+            android:name=".updates.InstallResultReceiver"
+            android:exported="false" />
 
         <!-- Exported conversations are shared from the cache through this provider. -->
         <provider

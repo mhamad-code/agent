@@ -46,7 +46,19 @@ object ChatMigrationSql {
             "SELECT `m`.`id` FROM `messages` `m` " +
             "WHERE `m`.`conversationId` = `conversations`.`id` " +
             "ORDER BY `m`.`rowid` DESC LIMIT 1)",
-        "INSERT OR REPLACE INTO `message_fts` (`messageId`, `conversationId`, `text`) " +
+                    "INSERT OR REPLACE INTO `message_fts` (`messageId`, `conversationId`, `text`) " +
             "SELECT `id`, `conversationId`, `text` FROM `messages`",
+    )
+
+    /**
+     * Version 3 adds the agent activity log. Messages already carry their tool calls inside
+     * the `parts` column, so no existing row is rewritten.
+     */
+    val activityStatements = listOf(
+        "CREATE TABLE IF NOT EXISTS `tool_activity` (`id` TEXT NOT NULL, " +
+            "`at` INTEGER NOT NULL, `tool` TEXT NOT NULL, `input` TEXT NOT NULL, " +
+            "`result` TEXT NOT NULL, `approvedBy` TEXT NOT NULL, `ok` INTEGER NOT NULL, " +
+            "PRIMARY KEY(`id`))",
+        "CREATE INDEX IF NOT EXISTS `index_tool_activity_at` ON `tool_activity` (`at`)",
     )
 }

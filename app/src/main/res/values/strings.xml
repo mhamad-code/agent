@@ -70,6 +70,7 @@
     <string name="composer_send">Send</string>
     <string name="composer_stop">Stop</string>
     <string name="composer_tools">Tools</string>
+    <string name="composer_tools_off">Tools off</string>
     <string name="composer_deep_think">Deep Think</string>
     <string name="composer_deep_think_on">Deep Think on</string>
     <string name="composer_attach">Attach</string>
@@ -167,6 +168,24 @@
     <string name="notice_attachment_failed">That file could not be read. %1$s</string>
     <string name="notice_no_vision">This model does not read images. Pick a vision model first.</string>
     <string name="draft_saved">Draft saved</string>
+
+    <!-- Attachments (phase 2) -->
+    <string name="attachment_open">Open attachment</string>
+    <string name="attachment_failed_open">Show the problem</string>
+    <string name="attachment_file_short">FILE</string>
+    <string name="attachment_hint">PDF, text or code, up to 10 MB</string>
+    <string name="attachment_missing">This file is no longer on this device.</string>
+    <string name="attachment_file_size">%1$d KB</string>
+    <string name="attachment_default_name">Attachment</string>
+    <string name="attachment_prepare_failed">The file could not be prepared.</string>
+    <string name="notice_attachment_preparing">Wait for the attachment to finish preparing.</string>
+    <string name="composer_paste_image">Paste image</string>
+    <string name="attachment_notice_title">Sending attachments</string>
+    <string name="attachment_notice_body">Attachments leave this device and go to %1$s with this message. They are not sent again unless you send them again.</string>
+    <string name="attachment_notice_send">Send anyway</string>
+    <string name="chat_load_earlier">Load %1$d earlier messages</string>
+    <string name="announce_reply_started">Reply started</string>
+    <string name="announce_reply_finished">Reply finished</string>
 
     <!-- Slash commands -->
     <string name="slash_title">Commands</string>
@@ -272,6 +291,88 @@
     <string name="search_hint">Search every conversation</string>
     <string name="search_no_results">No matches</string>
     <string name="search_results">%1$d matches</string>
+
+    <!-- Updates -->
+    <string name="updates_title">Updates</string>
+    <string name="updates_row_subtitle">Check, download and install</string>
+    <string name="updates_current_version">Agent %1$s</string>
+    <string name="updates_version_code">version code %1$d</string>
+    <string name="updates_check">Check for updates</string>
+    <string name="updates_checking">Checking…</string>
+    <string name="updates_answered_by">Answered by %1$s</string>
+    <string name="updates_latest">Latest release</string>
+    <string name="updates_version_line">Version %1$s</string>
+    <string name="updates_published">Published %1$s</string>
+    <string name="updates_size">%1$s</string>
+    <string name="updates_no_update">You are on the latest version.</string>
+    <string name="updates_update">Update</string>
+    <string name="updates_later">Later</string>
+    <string name="updates_skip">Skip this version</string>
+    <string name="updates_show_again">Show this version again</string>
+    <string name="updates_downloading">Downloading the update…</string>
+    <string name="updates_download_progress">%1$s of %2$s</string>
+    <string name="updates_download_source">From %1$s</string>
+    <string name="updates_install">Install</string>
+    <string name="updates_allow_install">Allow installs from this app</string>
+    <string name="updates_install_permission">Android needs your permission to install an app from Agent.</string>
+    <string name="updates_hash_unconfirmed">The SHA-256 could not be confirmed from GitHub. Check the file yourself before installing.</string>
+    <string name="updates_signature_mismatch">The download is signed with a different key than the installed app, so it was refused.</string>
+    <string name="updates_signature_unreadable">The signature could not be read: %1$s</string>
+    <string name="updates_failed_title">Each address and why it failed</string>
+    <string name="updates_open_releases">Open the releases page in a browser</string>
+    <string name="updates_past">Past releases</string>
+    <string name="updates_source_section">Sources</string>
+    <string name="updates_source_order">Read in this order: GitHub API, raw.githubusercontent.com, then jsDelivr</string>
+    <string name="updates_mirror">Download mirror</string>
+    <string name="updates_mirror_hint">https://example.com/agent</string>
+    <string name="updates_mirror_reset">Reset the mirror</string>
+    <string name="updates_dialog_title">A new version is ready</string>
+
+    <!-- Terminal -->
+    <string name="terminal_title">Terminal</string>
+    <string name="terminal_start">Start</string>
+    <string name="terminal_stop">Stop</string>
+    <string name="terminal_stopped">Not running</string>
+    <string name="terminal_running">Terminal running</string>
+    <string name="terminal_running_body">The shell keeps running while you are in another app</string>
+    <string name="terminal_channel">Terminal</string>
+    <string name="terminal_install">Download the Linux environment</string>
+    <string name="terminal_installing">Downloading Alpine…</string>
+    <string name="terminal_use_device_shell">Use the device shell instead</string>
+    <string name="terminal_input_hint">Type a command</string>
+    <string name="terminal_copy">Copy</string>
+    <string name="terminal_paste">Paste</string>
+    <string name="terminal_clear">Clear</string>
+    <string name="terminal_copied">Copied</string>
+    <string name="diagnostics_title">Diagnostics</string>
+    <string name="diagnostics_subtitle">Nothing here identifies you</string>
+    <string name="diagnostics_copy">Copy report</string>
+    <string name="diagnostics_copied">Copied</string>
+
+    <!-- Agent tools -->
+    <string name="tools_model_unsupported">This model does not support tool calling, so the tools are off.</string>
+    <string name="tool_approve">Approve once</string>
+    <string name="tool_always_allow">Always allow</string>
+    <string name="tool_reject">Reject</string>
+    <string name="tool_revert">Revert this change</string>
+    <string name="tool_reverted">Change reverted</string>
+    <string name="tool_input">Input</string>
+    <string name="tool_output">Output</string>
+    <string name="tool_status_waiting">Waiting for your approval</string>
+    <string name="tool_status_running">Running</string>
+    <string name="tool_status_done">Done</string>
+    <string name="tool_status_failed">Failed</string>
+    <string name="tool_status_rejected">Rejected</string>
+    <string name="tool_rejected_result">The user rejected this call.</string>
+    <string name="tool_interrupted">Interrupted before it finished.</string>
+    <string name="agent_continue">Continue the task</string>
+    <string name="agent_step_limit">25 steps are used. Continue?</string>
+    <string name="security_activity_empty">No tool has run yet</string>
+    <string name="security_always_allowed">Always allowed</string>
+    <string name="security_always_ask">Always asks (cannot be changed)</string>
+    <string name="security_remove_rule">Remove</string>
+    <string name="security_activity_log">Activity log</string>
+    <string name="security_clear_log">Clear the log</string>
 
     <!-- Notices -->
     <string name="notice_saved_to_memory">Saved to memory</string>

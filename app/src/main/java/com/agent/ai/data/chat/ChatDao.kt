@@ -135,6 +135,17 @@ interface ChatDao {
     )
     suspend fun search(query: String): List<SearchHit>
 
+    // ----- Agent activity ------------------------------------------------------------
+
+    @Query("SELECT * FROM tool_activity ORDER BY at DESC LIMIT 200")
+    fun observeActivity(): Flow<List<ToolActivityEntity>>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertActivity(activity: ToolActivityEntity)
+
+    @Query("DELETE FROM tool_activity")
+    suspend fun clearActivity()
+
     // ----- Models --------------------------------------------------------------------
 
     @Query("SELECT * FROM models ORDER BY free DESC, name ASC")

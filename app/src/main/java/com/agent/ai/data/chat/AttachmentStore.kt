@@ -13,11 +13,23 @@ import java.util.UUID
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-/** What the composer holds before a message is sent. */
+/**
+ * What the composer holds before a message is sent. [part] is null while the file is being
+ * prepared; [error] holds the plain reason when preparing failed.
+ */
 data class AttachmentDraft(
     val id: String,
-    val part: MessagePart,
-)
+    val part: MessagePart? = null,
+    val name: String = "",
+    val mime: String = "",
+    val preparing: Boolean = false,
+    val error: String? = null,
+) {
+    val extension: String
+        get() = name.substringAfterLast('.', "").lowercase()
+
+    val isImage: Boolean get() = mime.startsWith("image/")
+}
 
 /**
  * Attachments live in the app's private folder. Images are resized to at most 2048 px on

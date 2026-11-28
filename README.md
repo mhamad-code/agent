@@ -37,7 +37,10 @@ app/src/main/java/com/agent/ai/
 ├── markdown/    Markdown parser, inline styling, syntax highlighting
 ├── providers/   provider interface and the Kilo gateway client
 ├── ui/          theme, shared components, screens
-└── updates/     update check, download and install
+├── updates/     update check, download and install
+├── terminal/    session backends, ANSI screen, rootfs download
+├── agent/       project sandbox, tools, approvals
+└── util/        small helpers such as the API 24 safe process calls
 ```
 
 `app/schemas/` holds the exported Room schemas used by the migration test.

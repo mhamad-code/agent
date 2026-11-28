@@ -41,6 +41,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
+import androidx.compose.ui.input.key.isCtrlPressed
 import androidx.compose.ui.input.key.isShiftPressed
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
@@ -78,6 +79,11 @@ fun Composer(
     onAttachImage: () -> Unit,
     onAttachFile: () -> Unit,
     onRemoveAttachment: (String) -> Unit,
+    onOpenAttachment: (com.agent.ai.data.chat.AttachmentDraft) -> Unit,
+    onAttachmentError: (com.agent.ai.data.chat.AttachmentDraft) -> Unit,
+    onPasteImage: () -> Boolean,
+    /** Words the recognizer has heard so far, shown while the user is still speaking. */
+    partialVoice: String?,
     onVoice: () -> Unit,
     onOpenModels: () -> Unit,
     onOpenTools: () -> Unit,
@@ -127,16 +133,31 @@ fun Composer(
             }
         }
 
+        // Attachments sit inside the input card, above the text, as a sideways strip.
         if (state.attachments.isNotEmpty()) {
+            DraftAttachmentStrip(
+                drafts = state.attachments,
+                onOpen = onOpenAttachment,
+                onRemove = { onRemoveAttachment(it.id) },
+                onShowError = onAttachmentError,
+            )
+        }
+
+        if (!partialVoice.isNullOrBlank()) {
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .horizontalScroll(rememberScrollState()),
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
             ) {
-                state.attachments.forEach { draft ->
-                    AttachmentChip(draft, onRemove = { onRemoveAttachment(draft.id) })
-                }
+                LineIcon(AgentIcons.Mic, size = 12.dp, tint = palette.c4)
+                Text(
+                    text = partialVoice,
+                    fontSize = 12.sp,
+                    color = palette.c4,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f),
+                )
             }
         }
 
@@ -162,9 +183,12 @@ fun Composer(
                     .heightIn(min = 24.dp)
                     .focusRequester(focusRequester)
                     .onPreviewKeyEvent { event ->
-                        if (event.type == KeyEventType.KeyDown &&
-                            (event.key == Key.Enter || event.key == Key.NumPadEnter)
-                        ) {
+                        if (event.type != KeyEventType.KeyDown) return@onPreviewKeyEvent false
+                        // Ctrl and V pastes an image from the clipboard into the message.
+                        if (event.isCtrlPressed && event.key == Key.V) {
+                            return@onPreviewKeyEvent onPasteImage()
+                        }
+                        if (event.key == Key.Enter || event.key == Key.NumPadEnter) {
                             if (!enterToSend || event.isShiftPressed) {
                                 false
                             } else {
@@ -230,7 +254,18 @@ fun Composer(
                 label = stringResource(R.string.attach_image),
                 onClick = onAttachImage,
             )
-            Pill(stringResource(R.string.composer_tools), onOpenTools)
+            if (state.clipboardHasImage) {
+                Pill(stringResource(R.string.composer_paste_image), { onPasteImage() })
+            }
+            Pill(
+                if (state.toolsEnabled) {
+                    stringResource(R.string.composer_tools)
+                } else {
+                    stringResource(R.string.composer_tools_off)
+                },
+                onOpenTools,
+                contentDescription = state.toolsReason,
+            )
             Pill(
                 if (state.deepThink) {
                     stringResource(R.string.composer_deep_think_on)
@@ -326,47 +361,6 @@ private fun OfflineBanner(onSendNow: () -> Unit, onCancel: () -> Unit) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             SmallPill(stringResource(R.string.offline_send_now), onSendNow)
             SmallPill(stringResource(R.string.cancel), onCancel)
-        }
-    }
-}
-
-@Composable
-private fun AttachmentChip(
-    draft: com.agent.ai.data.chat.AttachmentDraft,
-    onRemove: () -> Unit,
-) {
-    val palette = AgentTheme.palette
-    val name = when (val part = draft.part) {
-        is com.agent.ai.data.chat.MessagePart.Image -> part.name
-        is com.agent.ai.data.chat.MessagePart.File -> part.name
-        else -> ""
-    }
-    Row(
-        modifier = Modifier
-            .clip(RoundedCornerShape(10.dp))
-            .background(palette.c1)
-            .border(1.dp, palette.c3, RoundedCornerShape(10.dp))
-            .padding(start = 8.dp, end = 2.dp, top = 2.dp, bottom = 2.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
-    ) {
-        LineIcon(AgentIcons.Paperclip, size = 12.dp, tint = palette.c4)
-        Text(
-            text = name,
-            fontSize = 11.sp,
-            color = palette.c5,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.widthIn(max = 140.dp),
-        )
-        Box(
-            Modifier
-                .size(24.dp)
-                .clip(CircleShape)
-                .clickable(onClickLabel = stringResource(R.string.attachment_remove), onClick = onRemove),
-            contentAlignment = Alignment.Center,
-        ) {
-            LineIcon(AgentIcons.X, size = 11.dp, tint = palette.c4)
         }
     }
 }

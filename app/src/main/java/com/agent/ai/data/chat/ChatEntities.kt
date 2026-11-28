@@ -134,6 +134,19 @@ data class MessageFtsEntity(
     val text: String,
 )
 
+/** Every tool call the agent made, for the Security and approvals screen. */
+@Entity(tableName = "tool_activity")
+data class ToolActivityEntity(
+    @PrimaryKey val id: String,
+    val at: Long,
+    val tool: String,
+    val input: String,
+    val result: String,
+    /** `automatic`, `once`, `always` or `rejected`. */
+    val approvedBy: String,
+    val ok: Boolean,
+)
+
 /** One search hit, joined with its conversation for the list. */
 data class SearchHit(
     val messageId: String,

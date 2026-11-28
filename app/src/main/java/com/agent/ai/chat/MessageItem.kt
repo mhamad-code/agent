@@ -76,6 +76,11 @@ fun MessageItem(
     onContinue: () -> Unit,
     onRetry: () -> Unit,
     onOpenModels: () -> Unit,
+    onOpenAttachment: (MessagePart) -> Unit = {},
+    onApproveTool: (String) -> Unit = {},
+    onAlwaysAllowTool: (String) -> Unit = {},
+    onRejectTool: (String) -> Unit = {},
+    onRevertTool: (String) -> Unit = {},
 ) {
     val palette = AgentTheme.palette
     val isStreaming = message.streaming
@@ -99,6 +104,8 @@ fun MessageItem(
                         .padding(horizontal = 14.dp, vertical = 10.dp),
                     verticalArrangement = Arrangement.spacedBy(6.dp),
                 ) {
+                    // Attachments come above the text, in the same square style as the input.
+                    MessageAttachmentStrip(message.parts, onOpenAttachment)
                     if (text.isNotBlank()) {
                         Text(
                             text = text,
@@ -110,7 +117,6 @@ fun MessageItem(
                             ),
                         )
                     }
-                    AttachmentChips(message.parts)
                     if (message.status == MessageStatus.WAITING) {
                         Text(
                             text = stringResource(R.string.offline_waiting),
@@ -152,6 +158,23 @@ fun MessageItem(
                     isStreaming -> ThinkingRow()
                 }
 
+                // Each call reads as a card, in the order the model made it.
+                message.tools.forEach { call ->
+                    ToolCallCard(
+                        call = call,
+                        onApprove = { onApproveTool(call.id) },
+                        onAlwaysAllow = if (
+                            com.agent.ai.agent.ApprovalPolicy.isAlwaysAsk(call.name, call.arguments)
+                        ) {
+                            null
+                        } else {
+                            { onAlwaysAllowTool(call.id) }
+                        },
+                        onReject = { onRejectTool(call.id) },
+                        onRevert = { onRevertTool(call.id) },
+                    )
+                }
+
                 if (message.status == MessageStatus.FAILED) {
                     FailedBox(
                         kind = message.errorKind,
@@ -169,7 +192,7 @@ fun MessageItem(
                     )
                 }
 
-                if (!isStreaming && text.isNotBlank()) {
+                if (!isStreaming && (text.isNotBlank() || message.tools.isNotEmpty())) {
                     ReplyActions(
                         onCopy = {
                             haptic()
@@ -211,9 +234,13 @@ private fun BranchSwitcher(index: Int, count: Int, onSwitch: (Int) -> Unit) {
     ) {
         Box(
             Modifier
+                .minimumInteractiveComponentSize()
                 .size(28.dp)
                 .clip(RoundedCornerShape(8.dp))
-                .clickable(enabled = index > 1) { onSwitch(-1) },
+                .clickable(
+                    enabled = index > 1,
+                    onClickLabel = stringResource(R.string.action_prev_branch),
+                ) { onSwitch(-1) },
             contentAlignment = Alignment.Center,
         ) {
             LineIcon(
@@ -229,9 +256,13 @@ private fun BranchSwitcher(index: Int, count: Int, onSwitch: (Int) -> Unit) {
         )
         Box(
             Modifier
+                .minimumInteractiveComponentSize()
                 .size(28.dp)
                 .clip(RoundedCornerShape(8.dp))
-                .clickable(enabled = index < count) { onSwitch(1) },
+                .clickable(
+                    enabled = index < count,
+                    onClickLabel = stringResource(R.string.action_next_branch),
+                ) { onSwitch(1) },
             contentAlignment = Alignment.Center,
         ) {
             LineIcon(
@@ -454,67 +485,6 @@ private fun ThinkingRow() {
         fontSize = 14.sp,
         color = palette.c4.copy(alpha = alpha),
     )
-}
-
-/** Name and size chips for the attachments of a message. */
-@Composable
-fun AttachmentChips(parts: List<MessagePart>) {
-    val palette = AgentTheme.palette
-    val media = parts.filter { it is MessagePart.Image || it is MessagePart.File }
-    if (media.isEmpty()) return
-    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        media.forEach { part ->
-            when (part) {
-                is MessagePart.Image -> {
-                    val bitmap = remember(part.path) {
-                        runCatching { BitmapFactory.decodeFile(part.path)?.asImageBitmap() }.getOrNull()
-                    }
-                    if (bitmap != null) {
-                        Image(
-                            bitmap = bitmap,
-                            contentDescription = part.name,
-                            contentScale = ContentScale.Crop,
-                            modifier = Modifier
-                                .size(width = 160.dp, height = 110.dp)
-                                .clip(RoundedCornerShape(10.dp)),
-                        )
-                    } else {
-                        AttachmentRow(stringResource(R.string.attachment_image), part.name)
-                    }
-                }
-
-                is MessagePart.File -> AttachmentRow(
-                    stringResource(R.string.attachment_file),
-                    part.name + " · " + humanSize(part.size),
-                )
-
-                else -> Unit
-            }
-        }
-    }
-}
-
-@Composable
-private fun AttachmentRow(kind: String, name: String) {
-    val palette = AgentTheme.palette
-    Row(
-        modifier = Modifier
-            .clip(RoundedCornerShape(8.dp))
-            .background(palette.c1)
-            .border(1.dp, palette.c3, RoundedCornerShape(8.dp))
-            .padding(horizontal = 8.dp, vertical = 5.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
-    ) {
-        LineIcon(AgentIcons.FileText, size = 13.dp, tint = palette.c4)
-        Text(
-            text = "$kind · $name",
-            fontSize = 11.sp,
-            color = palette.c4,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
-    }
 }
 
 fun humanSize(bytes: Long): String = when {

@@ -40,6 +40,7 @@ fun SettingsScreen(
     onNavigate: (String) -> Unit,
     reduceMotion: Boolean,
     onReduceMotion: (Boolean) -> Unit,
+    onOpenUpdates: () -> Unit = {},
 ) {
     val palette = AgentTheme.palette
     val themeDots = listOf(palette.c0, palette.c3, palette.c4, palette.c5)
@@ -173,10 +174,18 @@ fun SettingsScreen(
             )
             ListDivider()
             SettingRow(
+                icon = AgentIcons.Download,
+                title = stringResource(R.string.updates_title),
+                subtitle = stringResource(R.string.updates_row_subtitle),
+                index = 11,
+                onClick = onOpenUpdates,
+            )
+            ListDivider()
+            SettingRow(
                 icon = AgentIcons.Info,
                 title = "About",
                 subtitle = "Version, licenses",
-                index = 11,
+                index = 12,
                 onClick = { onNavigate(Routes.About) },
             )
         }

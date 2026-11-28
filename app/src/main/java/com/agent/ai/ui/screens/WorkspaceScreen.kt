@@ -30,7 +30,11 @@ import com.agent.ai.ui.components.TrailingChevron
 import com.agent.ai.ui.theme.AgentTheme
 
 @Composable
-fun WorkspaceScreen(onBack: () -> Unit) {
+fun WorkspaceScreen(
+    onBack: () -> Unit,
+    onOpenTerminal: () -> Unit = {},
+    onOpenDiagnostics: () -> Unit = {},
+) {
     val palette = AgentTheme.palette
     var keepRunning by remember { mutableStateOf(true) }
 
@@ -55,11 +59,9 @@ fun WorkspaceScreen(onBack: () -> Unit) {
         }
 
         Panel {
-            ChevronRow("Linux distribution", "Ubuntu in proot")
+            ChevronRow("Shell", "Open the terminal", onOpenTerminal)
             PanelDivider()
-            ChevronRow("Installed packages", "Python, Node, Git")
-            PanelDivider()
-            ChevronRow("Shell", "bash")
+            ChevronRow("Diagnostics", "Device checks and the last error", onOpenDiagnostics)
         }
 
         Panel {
@@ -89,9 +91,9 @@ fun WorkspaceScreen(onBack: () -> Unit) {
 }
 
 @Composable
-private fun ChevronRow(title: String, subtitle: String) {
+private fun ChevronRow(title: String, subtitle: String, onClick: () -> Unit) {
     val palette = AgentTheme.palette
-    PanelRow {
+    PanelRow(onClick = onClick) {
         Column(Modifier.weight(1f)) {
             Text(title, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = palette.c5)
             Text(subtitle, fontSize = 12.sp, color = palette.c4, modifier = Modifier.padding(top = 2.dp))

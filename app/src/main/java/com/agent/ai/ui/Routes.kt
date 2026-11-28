@@ -29,6 +29,9 @@ object Routes {
     const val Search = "search"
     const val Subagents = "subagents"
     const val Usage = "usage"
+    const val Updates = "updates"
+    const val Terminal = "terminal"
+    const val Diagnostics = "diagnostics"
 }
 
 enum class AgentSheetType { Models, Tools }

@@ -224,15 +224,49 @@ class KiloGatewayProvider(
         temperature?.let { put("temperature", it) }
         // The standard OpenAI compatible field, sent only for models that reason.
         if (reasoning) put("reasoning_effort", "medium")
+        if (tools.isNotEmpty()) {
+            putJsonArray("tools") {
+                tools.forEach { tool ->
+                    add(
+                        buildJsonObject {
+                            put("type", "function")
+                            putJsonObject("function") {
+                                put("name", tool.name)
+                                put("description", tool.description)
+                                put("parameters", Json.parseToJsonElement(tool.parameters))
+                            }
+                        }
+                    )
+                }
+            }
+            put("tool_choice", "auto")
+        }
         putJsonArray("messages") {
             messages.forEach { message ->
                 add(
                     buildJsonObject {
                         put("role", message.role.wire)
+                        if (message.toolCallId != null) put("tool_call_id", message.toolCallId)
                         if (message.images.isEmpty()) {
                             put("content", message.content)
                         } else {
                             put("content", imageContent(message))
+                        }
+                        if (message.toolCalls.isNotEmpty()) {
+                            putJsonArray("tool_calls") {
+                                message.toolCalls.forEach { call ->
+                                    add(
+                                        buildJsonObject {
+                                            put("id", call.id)
+                                            put("type", "function")
+                                            putJsonObject("function") {
+                                                put("name", call.name)
+                                                put("arguments", call.arguments)
+                                            }
+                                        }
+                                    )
+                                }
+                            }
                         }
                     }
                 )

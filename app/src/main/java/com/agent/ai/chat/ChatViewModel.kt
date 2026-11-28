@@ -8,6 +8,10 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.core.content.FileProvider
 import com.agent.ai.R
+import com.agent.ai.agent.AgentTools
+import com.agent.ai.agent.ApprovalPolicy
+import com.agent.ai.agent.ProjectSandbox
+import com.agent.ai.agent.ToolExecutor
 import com.agent.ai.data.chat.AttachmentDraft
 import com.agent.ai.data.chat.AttachmentStore
 import com.agent.ai.data.chat.ChatDatabase
@@ -30,7 +34,10 @@ import com.agent.ai.data.chat.MessageTree
 import com.agent.ai.data.chat.SlashCommandCatalog
 import com.agent.ai.data.chat.SlashCommandEntity
 import com.agent.ai.data.chat.SlashCommandEntry
+import com.agent.ai.data.chat.ToolActivityEntity
+import com.agent.ai.data.chat.ToolStatus
 import com.agent.ai.data.chat.partsOrText
+import com.agent.ai.terminal.LinuxRuntime
 import com.agent.ai.providers.ChatRequest
 import com.agent.ai.providers.KiloGatewayProvider
 import com.agent.ai.providers.ModelCapabilities
@@ -71,6 +78,8 @@ data class ChatMessageUi(
     val truncated: Boolean = false,
     val summary: Boolean = false,
     val streaming: Boolean = false,
+    /** Tool calls the model made in this message, in order. */
+    val tools: List<MessagePart.ToolCall> = emptyList(),
 ) {
     val hasReasoning: Boolean get() = reasoning.isNotBlank()
     val isUser: Boolean get() = role == Role.User
@@ -127,6 +136,21 @@ data class ChatUiState(
     val scrollToMessageId: String? = null,
     val titleAuto: Boolean = true,
     val hasCompaction: Boolean = false,
+    /** Messages on the visible branch that are older than the loaded page. */
+    val hiddenCount: Int = 0,
+    /** The clipboard holds an image this provider can read. */
+    val clipboardHasImage: Boolean = false,
+    /** Set while the one-time attachment notice waits for an answer. */
+    val attachmentNoticeProvider: String? = null,
+    /** False when the model cannot call tools; [toolsReason] says so in one line. */
+    val toolsEnabled: Boolean = false,
+    val toolsReason: String? = null,
+    /** How many agent steps this request has used. */
+    val agentStep: Int = 0,
+    /** A tool call is waiting for the user's answer. */
+    val agentWaiting: Boolean = false,
+    /** The 25 step limit was reached; the user chooses whether to continue. */
+    val awaitingContinue: Boolean = false,
 ) {
     val visionEnabled: Boolean get() = capabilities.vision
     val reasoningEnabled: Boolean get() = capabilities.reasoning
@@ -154,6 +178,8 @@ class ChatViewModel internal constructor(
     private val preferences = ChatPreferences(application)
     private val connectivity = ConnectivityMonitor(application)
     private val attachments = AttachmentStore(application)
+    private val sandbox = ProjectSandbox(LinuxRuntime.workspace(application))
+    private val tools = ToolExecutor(sandbox, File(application.filesDir, "backups"))
 
     private val _state = MutableStateFlow(ChatUiState())
     val state: StateFlow<ChatUiState> = _state.asStateFlow()
@@ -162,6 +188,15 @@ class ChatViewModel internal constructor(
     private var draftJob: Job? = null
     private var undoJob: Job? = null
     private var pendingAutoSent = false
+    /** Providers whose attachment notice the user already accepted. */
+    private var acknowledgedProviders: Set<String> = emptySet()
+    /** Tools the user chose Always allow for. */
+    private var alwaysAllowed: Set<String> = emptySet()
+    /** Tool calls waiting for an approve or reject tap. */
+    private val approvalWaiters = mutableMapOf<String, kotlinx.coroutines.CompletableDeferred<Pair<Boolean, Boolean>>>()
+    private var agentStep = 0
+    /** How many messages of the open branch are loaded; grows when the user asks. */
+    private var pageLimit = PAGE_SIZE
 
     private val activeConversation = MutableStateFlow<String?>(null)
     // A deleted chat disappears at once and is removed for good when the undo window ends.
@@ -185,6 +220,18 @@ class ChatViewModel internal constructor(
         viewModelScope.launch {
             preferences.privacyAccepted.collect { accepted ->
                 _state.update { it.copy(showPrivacyNotice = !accepted) }
+            }
+        }
+
+        viewModelScope.launch {
+            preferences.attachmentNotices.collect { providers ->
+                acknowledgedProviders = providers
+            }
+        }
+
+        viewModelScope.launch {
+            preferences.alwaysAllowTools.collect { allowed ->
+                alwaysAllowed = allowed
             }
         }
 
@@ -299,12 +346,46 @@ class ChatViewModel internal constructor(
         val text = snapshot.draft.trim()
         val pending = snapshot.attachments
         if (text.isEmpty() && pending.isEmpty()) return
+        if (pending.any { it.preparing }) {
+            _state.update { it.copy(noticeRes = R.string.notice_attachment_preparing) }
+            return
+        }
+        if (pending.any { it.part != null } && provider.id !in acknowledgedProviders) {
+            _state.update { it.copy(attachmentNoticeProvider = provider.id) }
+            return
+        }
+        performSend(text, pending.filter { it.part != null })
+    }
 
-        _state.update { it.copy(draft = "", attachments = emptyList(), error = null) }
+    /** Runs after the one-time attachment notice is accepted. */
+    fun confirmAttachmentNotice() {
+        val id = _state.value.attachmentNoticeProvider ?: return
+        acknowledgedProviders = acknowledgedProviders + id
+        _state.update { it.copy(attachmentNoticeProvider = null) }
+        viewModelScope.launch { preferences.acknowledgeAttachmentNotice(id) }
+        val snapshot = _state.value
+        performSend(snapshot.draft.trim(), snapshot.attachments.filter { it.part != null })
+    }
+
+    fun cancelAttachmentNotice() {
+        _state.update { it.copy(attachmentNoticeProvider = null) }
+    }
+
+    private fun performSend(text: String, pending: List<AttachmentDraft>) {
+        agentStep = 0
+        _state.update {
+            it.copy(
+                draft = "",
+                attachments = emptyList(),
+                error = null,
+                agentStep = 0,
+                awaitingContinue = false,
+            )
+        }
         draftJob?.cancel()
         viewModelScope.launch {
             repository.saveDraft(draftKey(), "")
-            val firstAttachment = pending.firstOrNull()?.part
+            val firstAttachment = pending.firstNotNullOfOrNull { it.part }
             val fallbackName = when (firstAttachment) {
                 is MessagePart.Image -> firstAttachment.name
                 is MessagePart.File -> firstAttachment.name
@@ -313,7 +394,7 @@ class ChatViewModel internal constructor(
             val conversationId = ensureConversation(text.ifBlank { fallbackName })
             val parts = buildList {
                 if (text.isNotEmpty()) add(MessagePart.Text(text))
-                pending.forEach { add(it.part) }
+                pending.forEach { draft -> draft.part?.let { add(it) } }
             }
             if (OfflinePolicy.shouldQueue(_state.value.online)) {
                 val id = repository.appendMessage(
@@ -374,6 +455,9 @@ class ChatViewModel internal constructor(
         streamJob?.cancel()
         streamJob = null
         provider.cancel()
+        approvalWaiters.values.forEach { it.complete(false to false) }
+        approvalWaiters.clear()
+        _state.update { it.copy(agentWaiting = false) }
         val messageId = _state.value.streamingMessageId
         val text = _state.value.streamingText
         val reasoning = _state.value.streamingReasoning
@@ -387,8 +471,9 @@ class ChatViewModel internal constructor(
                 streamingReasoning = "",
             )
         }
-        if (messageId != null) {
-            viewModelScope.launch {
+        val conversation = currentConversationId
+        viewModelScope.launch {
+            if (messageId != null) {
                 repository.finish(
                     messageId,
                     partsOf(text, reasoning, reasoningStartedAt),
@@ -396,6 +481,8 @@ class ChatViewModel internal constructor(
                 )
                 recompute()
             }
+            // A call that was waiting for a tap can never finish now.
+            if (conversation != null) markInterrupted(conversation)
         }
     }
 
@@ -508,6 +595,7 @@ class ChatViewModel internal constructor(
         val error: ProviderError?,
         val truncated: Boolean,
         val usage: Int?,
+        val toolCalls: List<ProviderEvent.ToolCall> = emptyList(),
     )
 
     private suspend fun runStream(
@@ -535,6 +623,10 @@ class ChatViewModel internal constructor(
 
             val error = result.error
             if (error == null) {
+                if (result.toolCalls.isNotEmpty() && _state.value.toolsEnabled) {
+                    finishWithTools(conversationId, messageId, text, reasoning, result.toolCalls)
+                    return
+                }
                 finishReply(messageId, text, reasoning, MessageStatus.DONE, null, result.truncated)
                 return
             }
@@ -573,6 +665,8 @@ class ChatViewModel internal constructor(
         var failure: ProviderError? = null
         var truncated = false
         var usage: Int? = null
+        val toolArguments = sortedMapOf<Int, StringBuilder>()
+        val toolMeta = mutableMapOf<Int, Pair<String?, String>>()
 
         try {
             val capabilities = capabilitiesFor(modelId)
@@ -590,12 +684,14 @@ class ChatViewModel internal constructor(
                 history += com.agent.ai.providers.WireMessage(Role.User, continueInstruction)
             }
 
+            val toolsOn = capabilities.toolCalling
             val request = ChatRequest(
                 model = modelId,
                 messages = history,
                 maxTokens = 2048,
                 temperature = 0.7,
                 reasoning = capabilities.reasoning && _state.value.deepThink,
+                tools = if (toolsOn && _state.value.toolsEnabled) AgentTools.specs else emptyList(),
             )
 
             provider.chat(request).collect { event ->
@@ -628,7 +724,16 @@ class ChatViewModel internal constructor(
                         event.usage?.let { usage = it.promptTokens }
                     }
 
-                    is ProviderEvent.ToolCall -> Unit
+                    is ProviderEvent.ToolCall -> {
+                        produced = true
+                        val buffer = toolArguments.getOrPut(event.index) { StringBuilder() }
+                        buffer.append(event.arguments)
+                        val previous = toolMeta[event.index]
+                        toolMeta[event.index] = Pair(
+                            event.id ?: previous?.first,
+                            event.name.ifBlank { previous?.second.orEmpty() },
+                        )
+                    }
                 }
             }
         } catch (cancelled: CancellationException) {
@@ -637,7 +742,270 @@ class ChatViewModel internal constructor(
             failure = failure ?: ProviderError(ProviderErrorKind.Unknown, t.message.orEmpty())
         }
 
-        return Attempt(text, reasoning, produced, failure, truncated, usage)
+        val calls = toolArguments.map { (index, buffer) ->
+            val meta = toolMeta[index]
+            ProviderEvent.ToolCall(
+                id = meta?.first,
+                name = meta?.second.orEmpty(),
+                arguments = buffer.toString(),
+                index = index,
+            )
+        }.filter { it.name.isNotBlank() }
+
+        return Attempt(text, reasoning, produced, failure, truncated, usage, calls)
+    }
+
+    // ----- Agent loop -----------------------------------------------------------------
+
+    /**
+     * Saves the calls as message parts, then runs them one by one. Writing, editing and
+     * commands wait for an approve tap; the result goes back to the model as a tool
+     * message, and the reply continues until the model stops asking for tools.
+     */
+    private suspend fun finishWithTools(
+        conversationId: String,
+        messageId: String,
+        text: String,
+        reasoning: String,
+        calls: List<ProviderEvent.ToolCall>,
+    ) {
+        streamJob = null
+        val seconds = reasoningSeconds()
+        val parts = buildList {
+            addAll(partsOf(text, reasoning, reasoningStartedAt, seconds))
+            calls.forEach { call ->
+                add(
+                    MessagePart.ToolCall(
+                        id = call.id ?: java.util.UUID.randomUUID().toString(),
+                        name = call.name,
+                        arguments = call.arguments,
+                        status = ToolStatus.WAITING,
+                    )
+                )
+            }
+        }
+        _state.update {
+            it.copy(
+                streaming = false,
+                awaitingFirstToken = false,
+                retrying = false,
+                streamingMessageId = null,
+                streamingText = "",
+                streamingReasoning = "",
+                error = null,
+            )
+        }
+        reasoningStartedAt = 0L
+        repository.finish(messageId, parts, MessageStatus.DONE, null, null, false)
+        recompute()
+        runToolCalls(conversationId, messageId, calls)
+    }
+
+    private fun runToolCalls(
+        conversationId: String,
+        assistantId: String,
+        calls: List<ProviderEvent.ToolCall>,
+    ) {
+        if (agentStep >= AgentTools.MAX_STEPS) {
+            _state.update { it.copy(awaitingContinue = true) }
+            return
+        }
+        agentStep++
+        streamJob = viewModelScope.launch {
+            _state.update {
+                it.copy(streaming = true, awaitingFirstToken = false, agentStep = agentStep)
+            }
+            val results = mutableListOf<MessagePart.ToolCall>()
+            for (call in calls) {
+                val id = call.id ?: java.util.UUID.randomUUID().toString()
+                val decision = ApprovalPolicy.decide(call.name, call.arguments, alwaysAllowed)
+                var approvedBy = "automatic"
+                if (decision != com.agent.ai.agent.ApprovalDecision.Automatic) {
+                    updateToolPart(assistantId, id) {
+                        it.copy(status = ToolStatus.WAITING, output = "")
+                    }
+                    _state.update { it.copy(agentWaiting = true) }
+                    val (approved, always) = awaitApproval(id)
+                    _state.update { it.copy(agentWaiting = false) }
+                    if (!approved) {
+                        val rejected = MessagePart.ToolCall(
+                            id = id,
+                            name = call.name,
+                            arguments = call.arguments,
+                            status = ToolStatus.REJECTED,
+                            output = app.getString(R.string.tool_rejected_result),
+                            approvedBy = "rejected",
+                        )
+                        updateToolPart(assistantId, id) { rejected }
+                        logActivity(rejected)
+                        results += rejected
+                        continue
+                    }
+                    approvedBy = when {
+                        decision == com.agent.ai.agent.ApprovalDecision.AlwaysAsk -> "once"
+                        always -> "always"
+                        else -> "once"
+                    }
+                    if (always && decision != com.agent.ai.agent.ApprovalDecision.AlwaysAsk) {
+                        alwaysAllowed = alwaysAllowed + call.name
+                        preferences.setAlwaysAllowTool(call.name, true)
+                    }
+                }
+                updateToolPart(assistantId, id) { it.copy(status = ToolStatus.RUNNING, approvedBy = approvedBy) }
+                // A running command writes into its card as the lines arrive.
+                var lastLive = 0L
+                val outcome = tools.run(call.name, call.arguments) { text ->
+                    val now = System.currentTimeMillis()
+                    if (now - lastLive > 700L) {
+                        lastLive = now
+                        viewModelScope.launch {
+                            updateToolPart(assistantId, id) { it.copy(output = text) }
+                        }
+                    }
+                }
+                val finished = MessagePart.ToolCall(
+                    id = id,
+                    name = call.name,
+                    arguments = call.arguments,
+                    status = if (outcome.ok) ToolStatus.DONE else ToolStatus.FAILED,
+                    output = outcome.output,
+                    diff = outcome.diff,
+                    backupPath = outcome.backupPath,
+                    approvedBy = approvedBy,
+                )
+                updateToolPart(assistantId, id) { finished }
+                logActivity(finished)
+                lastLive = 0L
+                results += finished
+            }
+            _state.update { it.copy(streaming = false, agentWaiting = false) }
+            val toolMessageId = repository.appendMessage(
+                conversationId = conversationId,
+                parentId = assistantId,
+                role = Role.Tool,
+                parts = results,
+                status = MessageStatus.DONE,
+                modelId = _state.value.modelId,
+            )
+            activeLeafId = toolMessageId
+            recompute()
+            startReply(conversationId, toolMessageId)
+        }
+    }
+
+    private suspend fun awaitApproval(callId: String): Pair<Boolean, Boolean> {
+        val deferred = kotlinx.coroutines.CompletableDeferred<Pair<Boolean, Boolean>>()
+        approvalWaiters[callId] = deferred
+        return try {
+            deferred.await()
+        } finally {
+            approvalWaiters.remove(callId)
+        }
+    }
+
+    fun approveTool(callId: String, always: Boolean = false) {
+        approvalWaiters[callId]?.complete(true to always)
+    }
+
+    fun rejectTool(callId: String) {
+        approvalWaiters[callId]?.complete(false to false)
+    }
+
+    fun continueAgent() {
+        if (!_state.value.awaitingContinue) return
+        agentStep = 0
+        _state.update { it.copy(awaitingContinue = false) }
+        val conversationId = currentConversationId ?: return
+        startReply(
+            conversationId = conversationId,
+            parentId = activeLeafId,
+            continueInstruction = "Continue the task where you stopped.",
+        )
+    }
+
+    /** Puts the file back the way it was before an edit. */
+    fun revertTool(callId: String) {
+        val row = allRows.lastOrNull { message ->
+            message.partsOrText().any { it is MessagePart.ToolCall && it.id == callId }
+        } ?: return
+        val part = row.partsOrText().filterIsInstance<MessagePart.ToolCall>()
+            .firstOrNull { it.id == callId } ?: return
+        val backup = part.backupPath?.let(::File) ?: return
+        val path = (AgentTools.parseObject(part.arguments)["path"] as? kotlinx.serialization.json.JsonPrimitive)
+            ?.content
+            ?: return
+        viewModelScope.launch(Dispatchers.IO) {
+            runCatching {
+                val target = sandbox.resolve(path)
+                backup.copyTo(target, overwrite = true)
+            }.onSuccess {
+                updateToolPart(row.id, callId) {
+                    it.copy(status = ToolStatus.DONE, diff = "", output = app.getString(R.string.tool_reverted))
+                }
+                _state.update { it.copy(noticeRes = R.string.tool_reverted) }
+            }.onFailure { error ->
+                _state.update { it.copy(noticeRes = R.string.notice_export_failed, noticeArg = error.message) }
+            }
+        }
+    }
+
+    private suspend fun updateToolPart(
+        messageId: String,
+        callId: String,
+        transform: (MessagePart.ToolCall) -> MessagePart.ToolCall,
+    ) {
+        val row = dao.message(messageId) ?: return
+        val parts = row.partsOrText().map { part ->
+            if (part is MessagePart.ToolCall && part.id == callId) transform(part) else part
+            }
+        val encoded = MessageParts.encode(parts)
+        dao.updateParts(messageId, encoded, MessageParts.text(parts), row.status)
+        allRows = allRows.map { if (it.id == messageId) it.copy(parts = encoded) else it }
+        recompute()
+    }
+
+    private fun logActivity(part: MessagePart.ToolCall) {
+        viewModelScope.launch {
+            dao.insertActivity(
+                ToolActivityEntity(
+                    id = java.util.UUID.randomUUID().toString(),
+                    at = System.currentTimeMillis(),
+                    tool = part.name,
+                    input = part.arguments.take(2_000),
+                    result = part.output.take(2_000),
+                    approvedBy = part.approvedBy.ifBlank { "automatic" },
+                    ok = part.status == ToolStatus.DONE,
+                )
+            )
+        }
+    }
+
+    /** A call left waiting by a closed app can never finish, so it is marked failed. */
+    private suspend fun markInterrupted(conversationId: String) {
+        var changed = false
+        for (row in allRows) {
+            val parts = row.partsOrText()
+            val stale = parts.any {
+                it is MessagePart.ToolCall &&
+                    (it.status == ToolStatus.WAITING || it.status == ToolStatus.RUNNING)
+            }
+            if (!stale) continue
+            val next = parts.map { part ->
+                if (part is MessagePart.ToolCall &&
+                    (part.status == ToolStatus.WAITING || part.status == ToolStatus.RUNNING)
+                ) {
+                    part.copy(status = ToolStatus.FAILED, output = app.getString(R.string.tool_interrupted))
+                } else {
+                    part
+                }
+            }
+            dao.updateParts(row.id, MessageParts.encode(next), MessageParts.text(next), row.status)
+            changed = true
+        }
+        if (changed) {
+            allRows = repository.allMessages(conversationId)
+            recompute()
+        }
     }
 
     private suspend fun finishReply(
@@ -860,6 +1228,7 @@ class ChatViewModel internal constructor(
         activeConversation.value = null
         activeLeafId = null
         reportedUsage = null
+        pageLimit = PAGE_SIZE
         _state.update {
             it.copy(
                 conversationId = null,
@@ -886,6 +1255,7 @@ class ChatViewModel internal constructor(
         currentConversationId = id
         activeConversation.value = id
         reportedUsage = null
+        pageLimit = PAGE_SIZE
         _state.update {
             it.copy(
                 conversationId = id,
@@ -913,6 +1283,7 @@ class ChatViewModel internal constructor(
                 )
             }
             allRows = repository.allMessages(id)
+            markInterrupted(id)
             recompute()
             val model = allRows.lastOrNull { it.modelId.isNotBlank() }?.modelId
             if (model != null && model != _state.value.modelId) selectModel(model, persist = false)
@@ -1044,6 +1415,19 @@ class ChatViewModel internal constructor(
             _state.update { it.copy(noticeRes = R.string.notice_no_vision) }
             return
         }
+        val name = runCatching { uri.lastPathSegment.orEmpty() }.getOrDefault("") 
+            .substringAfterLast('/').ifBlank { app.getString(R.string.attachment_default_name) }
+        val id = java.util.UUID.randomUUID().toString()
+        _state.update {
+            it.copy(
+                attachments = it.attachments + AttachmentDraft(
+                    id = id,
+                    name = name,
+                    mime = mime,
+                    preparing = true,
+                ),
+            )
+        }
         viewModelScope.launch {
             val result = when {
                 mime.startsWith("image/") -> attachments.importImage(uri)
@@ -1053,13 +1437,36 @@ class ChatViewModel internal constructor(
             result.onSuccess { part ->
                 if (part is MessagePart.File && part.size > AttachmentStore.MAX_ATTACHMENT_BYTES) {
                     attachments.deleteFilesFor(listOf(part))
+                    replaceDraft(id) {
+                        it.copy(preparing = false, error = app.getString(R.string.notice_attachment_too_large))
+                    }
                     _state.update { it.copy(noticeRes = R.string.notice_attachment_too_large) }
                     return@onSuccess
                 }
-                _state.update {
-                    it.copy(attachments = it.attachments + AttachmentDraft(part.hashCode().toString(), part))
+                val preparedName = when (part) {
+                    is MessagePart.Image -> part.name
+                    is MessagePart.File -> part.name
+                    else -> name
+                }
+                replaceDraft(id) {
+                    it.copy(
+                        part = part,
+                        preparing = false,
+                        name = preparedName,
+                        mime = when (part) {
+                            is MessagePart.Image -> part.mime
+                            is MessagePart.File -> part.mime
+                            else -> it.mime
+                        },
+                    )
                 }
             }.onFailure { error ->
+                replaceDraft(id) {
+                    it.copy(
+                        preparing = false,
+                        error = error.message ?: app.getString(R.string.attachment_prepare_failed),
+                    )
+                }
                 _state.update {
                     it.copy(noticeRes = R.string.notice_attachment_failed, noticeArg = error.message)
                 }
@@ -1067,10 +1474,70 @@ class ChatViewModel internal constructor(
         }
     }
 
+    private fun replaceDraft(id: String, transform: (AttachmentDraft) -> AttachmentDraft) {
+        _state.update { current ->
+            current.copy(
+                attachments = current.attachments.map { if (it.id == id) transform(it) else it },
+            )
+        }
+    }
+
     fun removeAttachment(id: String) {
         val draft = _state.value.attachments.firstOrNull { it.id == id } ?: return
         _state.update { it.copy(attachments = it.attachments.filterNot { it.id == id }) }
-        viewModelScope.launch(Dispatchers.IO) { attachments.deleteFilesFor(listOf(draft.part)) }
+        draft.part?.let { part ->
+            viewModelScope.launch(Dispatchers.IO) { attachments.deleteFilesFor(listOf(part)) }
+        }
+    }
+
+    /** The reason a failed attachment shows when it is tapped. */
+    fun showAttachmentError(id: String) {
+        val draft = _state.value.attachments.firstOrNull { it.id == id } ?: return
+        _state.update {
+            it.copy(
+                noticeRes = R.string.notice_attachment_failed,
+                noticeArg = draft.error,
+            )
+        }
+    }
+
+    // ----- Clipboard and pages -------------------------------------------------------
+
+    /** Checks the clipboard for an image the current model can read. */
+    fun refreshClipboard() {
+        val hasImage = runCatching { clipboardImageUri() != null }.getOrDefault(false) &&
+            _state.value.visionEnabled &&
+            _state.value.attachments.size < AttachmentStore.MAX_ATTACHMENTS
+        _state.update { if (it.clipboardHasImage == hasImage) it else it.copy(clipboardHasImage = hasImage) }
+    }
+
+    /** Pastes an image from the clipboard. A text clipboard is left to the text field. */
+    fun pasteImage(): Boolean {
+        val uri = clipboardImageUri() ?: return false
+        if (!_state.value.visionEnabled) {
+            _state.update { it.copy(noticeRes = R.string.notice_no_vision) }
+            return false
+        }
+        addAttachment(uri)
+        return true
+    }
+
+    private fun clipboardImageUri(): Uri? {
+        val manager = app.getSystemService(android.content.ClipboardManager::class.java) ?: return null
+        val clip = manager.primaryClip ?: return null
+        if (clip.itemCount == 0) return null
+        val item = clip.getItemAt(0)
+        val uri = item.uri ?: return null
+        val mime = clip.description?.getMimeType(0)
+            ?: app.contentResolver.getType(uri)
+            ?: return null
+        return if (mime.startsWith("image/")) uri else null
+    }
+
+    /** Loads the next older page of the conversation. */
+    fun loadEarlier() {
+        pageLimit += PAGE_SIZE
+        recompute()
     }
 
     // ----- Context and compaction -----------------------------------------------------
@@ -1228,6 +1695,12 @@ class ChatViewModel internal constructor(
                 capabilities = capabilities,
                 deepThink = it.deepThink && capabilities.reasoning,
                 contextWindow = capabilitiesWindow(modelId),
+                toolsEnabled = capabilities.toolCalling,
+                toolsReason = if (capabilities.toolCalling) {
+                    null
+                } else {
+                    app.getString(R.string.tools_model_unsupported)
+                },
             )
         }
     }
@@ -1250,7 +1723,13 @@ class ChatViewModel internal constructor(
         val breakdown = ContextBudget.breakdown(systemPrompt(), memoryTexts, visible)
         val window = capabilitiesWindow(snapshot.modelId)
         val used = maxOf(breakdown.total, snapshot.reportedUsage ?: 0)
-        val ui = visible.map { message ->
+        // Long conversations load a page at a time; the model still gets the whole branch.
+        val shown = if (visible.size > pageLimit) visible.takeLast(pageLimit) else visible
+        val hidden = visible.size - shown.size
+        // A tool result row exists for the model, not for the screen: the cards above
+        // already show it, so the result is never printed twice.
+        val ui = shown.mapNotNull { message ->
+            if (message.role == Role.Tool.wire) return@mapNotNull null
             val parts = message.partsOrText()
             val branch = MessageTree.branchPosition(allRows, message)
             ChatMessageUi(
@@ -1267,6 +1746,7 @@ class ChatViewModel internal constructor(
                     .firstOrNull()?.seconds ?: 0,
                 status = message.status,
                 modelId = message.modelId,
+                tools = MessageParts.tools(parts),
                 errorKind = ChatRepository.kindOf(message.errorKind),
                 errorDetail = message.errorDetail,
                 branch = branch,
@@ -1278,6 +1758,7 @@ class ChatViewModel internal constructor(
         _state.update {
             it.copy(
                 messages = ui,
+                hiddenCount = hidden,
                 context = breakdown,
                 contextPercent = ContextBudget.percent(used, window),
                 contextWindow = window,
@@ -1312,6 +1793,7 @@ class ChatViewModel internal constructor(
     companion object {
         const val NEW_CHAT_KEY = "#new"
         const val UNDO_MS = 6_000L
+        const val PAGE_SIZE = 40
         const val DRAFT_DELAY_MS = 500L
         const val MAX_RETRIES = 2
         const val COMPACT_KEEP_TOKENS = 2_500

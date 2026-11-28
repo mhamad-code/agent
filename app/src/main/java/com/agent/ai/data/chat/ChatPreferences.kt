@@ -5,6 +5,7 @@ import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
+import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -39,6 +40,23 @@ class ChatPreferences(private val context: Context) {
         val MemoryEnabled = booleanPreferencesKey("memory_enabled")
         val SystemPrompt = stringPreferencesKey("system_prompt")
         val VoiceLanguage = stringPreferencesKey("voice_language")
+        val AttachmentNotices = stringSetPreferencesKey("attachment_notices")
+        val AlwaysAllowTools = stringSetPreferencesKey("always_allow_tools")
+    }
+
+    /** Tools the user chose Always allow for. The always-ask list is not affected. */
+    val alwaysAllowTools: Flow<Set<String>> =
+        context.chatDataStore.data.map { it[Keys.AlwaysAllowTools] ?: emptySet() }
+
+    /** Providers the user already agreed to send attachments to. */
+    val attachmentNotices: Flow<Set<String>> =
+        context.chatDataStore.data.map { it[Keys.AttachmentNotices] ?: emptySet() }
+
+    suspend fun acknowledgeAttachmentNotice(providerId: String) {
+        context.chatDataStore.edit { preferences ->
+            val current = preferences[Keys.AttachmentNotices] ?: emptySet()
+            preferences[Keys.AttachmentNotices] = current + providerId
+        }
     }
 
     val privacyAccepted: Flow<Boolean> =
@@ -64,6 +82,13 @@ class ChatPreferences(private val context: Context) {
 
     suspend fun setPrivacyAccepted(accepted: Boolean) {
         context.chatDataStore.edit { it[Keys.PrivacyAccepted] = accepted }
+    }
+
+    suspend fun setAlwaysAllowTool(tool: String, allowed: Boolean) {
+        context.chatDataStore.edit { preferences ->
+            val current = preferences[Keys.AlwaysAllowTools] ?: emptySet()
+            preferences[Keys.AlwaysAllowTools] = if (allowed) current + tool else current - tool
+        }
     }
 
     suspend fun setSelectedModel(modelId: String) {

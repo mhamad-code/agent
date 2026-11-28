@@ -129,18 +129,42 @@ fun ChatScreen(
     val haptics = rememberHaptics()
     val atBottom by remember { derivedStateOf { !listState.canScrollForward } }
     val follow = state.settings.autoScroll
+    val view = androidx.compose.ui.platform.LocalView.current
+    var wasStreaming by remember { mutableStateOf(false) }
+    val extraItems = if (state.hiddenCount > 0) 1 else 0
+
+    // TalkBack hears that a reply started and finished, never every token.
+    LaunchedEffect(state.streaming) {
+        if (state.streaming) {
+            wasStreaming = true
+            view.announceForAccessibility(context.getString(R.string.announce_reply_started))
+        } else if (wasStreaming) {
+            wasStreaming = false
+            view.announceForAccessibility(context.getString(R.string.announce_reply_finished))
+        }
+    }
+
+    // The clipboard is read when the app is in front, which is the only time Android allows it.
+    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) chat.refreshClipboard()
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
 
     // Follow the end of the reply, but only while the user is at the bottom.
     LaunchedEffect(state.streamingText.length, state.messages.size, state.streamingReasoning.length) {
         if (follow && atBottom && state.messages.isNotEmpty()) {
-            listState.scrollToItem(state.messages.lastIndex, 1_000_000)
+            listState.scrollToItem(state.messages.lastIndex + extraItems, 1_000_000)
         }
     }
 
     // A new message always scrolls to the bottom.
     LaunchedEffect(state.messages.firstOrNull()?.id, state.messages.size) {
         if (state.messages.isNotEmpty() && state.streamingMessageId != null) {
-            listState.scrollToItem(state.messages.lastIndex, 1_000_000)
+            listState.scrollToItem(state.messages.lastIndex + extraItems, 1_000_000)
         }
     }
 
@@ -149,7 +173,7 @@ fun ChatScreen(
         val id = state.scrollToMessageId ?: return@LaunchedEffect
         val index = state.messages.indexOfFirst { it.id == id }
         if (index >= 0) {
-            listState.scrollToItem(index, 0)
+            listState.scrollToItem(index + extraItems, 0)
             chat.consumeScrollTo()
         }
     }
@@ -183,21 +207,71 @@ fun ChatScreen(
         uri?.let(chat::addAttachment)
     }
 
-    val voiceLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.StartActivityForResult()
-    ) { result ->
-        listening = false
-        val heard = result.data
-            ?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)
-            ?.firstOrNull()
-        if (!heard.isNullOrBlank()) chat.dictate(heard)
+    var partialVoice by remember { mutableStateOf<String?>(null) }
+    var previewPart by remember { mutableStateOf<com.agent.ai.data.chat.MessagePart?>(null) }
+    val speech = remember { mutableStateOf<SpeechRecognizer?>(null) }
+
+    DisposableEffect(Unit) {
+        onDispose {
+            runCatching { speech.value?.destroy() }
+            speech.value = null
+        }
     }
 
+    // Words appear while the user is still speaking, then the final text is inserted once.
     fun startVoice() {
         if (!SpeechRecognizer.isRecognitionAvailable(context)) {
             scope.launch { snackbar.showSnackbar(context.getString(R.string.voice_unavailable)) }
             return
         }
+        runCatching { speech.value?.destroy() }
+        val recognizer = runCatching { SpeechRecognizer.createSpeechRecognizer(context) }.getOrNull()
+        if (recognizer == null) {
+            scope.launch { snackbar.showSnackbar(context.getString(R.string.voice_unavailable)) }
+            return
+        }
+        speech.value = recognizer
+        recognizer.setRecognitionListener(object : android.speech.RecognitionListener {
+            override fun onReadyForSpeech(params: android.os.Bundle?) {
+                listening = true
+                partialVoice = null
+            }
+
+            override fun onBeginningOfSpeech() = Unit
+            override fun onRmsChanged(rmsdB: Float) = Unit
+            override fun onBufferReceived(buffer: ByteArray?) = Unit
+            override fun onEndOfSpeech() {
+                listening = false
+            }
+
+            override fun onError(error: Int) {
+                listening = false
+                partialVoice = null
+                if (error != SpeechRecognizer.ERROR_NO_MATCH &&
+                    error != SpeechRecognizer.ERROR_SPEECH_TIMEOUT
+                ) {
+                    scope.launch { snackbar.showSnackbar(context.getString(R.string.voice_unavailable)) }
+                }
+            }
+
+            override fun onResults(results: android.os.Bundle?) {
+                listening = false
+                partialVoice = null
+                val heard = results
+                    ?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+                    ?.firstOrNull()
+                if (!heard.isNullOrBlank()) chat.dictate(heard)
+            }
+
+            override fun onPartialResults(partialResults: android.os.Bundle?) {
+                val heard = partialResults
+                    ?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
+                    ?.firstOrNull()
+                if (!heard.isNullOrBlank()) partialVoice = heard
+            }
+
+            override fun onEvent(eventType: Int, params: android.os.Bundle?) = Unit
+        })
         val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
             putExtra(
                 RecognizerIntent.EXTRA_LANGUAGE_MODEL,
@@ -205,9 +279,13 @@ fun ChatScreen(
             )
             putExtra(RecognizerIntent.EXTRA_LANGUAGE, state.settings.voiceLanguage)
             putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
+            putExtra(RecognizerIntent.EXTRA_CALLING_PACKAGE, context.packageName)
         }
-        runCatching { voiceLauncher.launch(intent) }
-            .onFailure { scope.launch { snackbar.showSnackbar(context.getString(R.string.voice_unavailable)) } }
+        val started = runCatching { recognizer.startListening(intent) }.isSuccess
+        if (!started) {
+            scope.launch { snackbar.showSnackbar(context.getString(R.string.voice_unavailable)) }
+            return
+        }
         listening = true
     }
 
@@ -272,6 +350,14 @@ fun ChatScreen(
                                 bottom = 12.dp,
                             ),
                         ) {
+                            if (state.hiddenCount > 0) {
+                                item(key = "load-earlier") {
+                                    LoadEarlierRow(
+                                        count = state.hiddenCount,
+                                        onClick = chat::loadEarlier,
+                                    )
+                                }
+                            }
                             items(state.messages, key = { it.id }) { message ->
                                 MessageItem(
                                     message = message,
@@ -296,6 +382,11 @@ fun ChatScreen(
                                     onContinue = { chat.continueReply(message.id) },
                                     onRetry = { chat.retry(message.id) },
                                     onOpenModels = { sheet = ChatSheet.Models },
+                                    onOpenAttachment = { part -> previewPart = part },
+                                    onApproveTool = { id -> chat.approveTool(id) },
+                                    onAlwaysAllowTool = { id -> chat.approveTool(id, always = true) },
+                                    onRejectTool = chat::rejectTool,
+                                    onRevertTool = chat::revertTool,
                                 )
                             }
                         }
@@ -317,6 +408,25 @@ fun ChatScreen(
                     }
                 }
 
+                if (state.awaitingContinue) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        Text(
+                            text = stringResource(R.string.agent_step_limit),
+                            fontSize = 12.sp,
+                            color = AgentTheme.palette.c4,
+                            modifier = Modifier.weight(1f),
+                        )
+                        SmallPill(
+                            label = stringResource(R.string.agent_continue),
+                            onClick = chat::continueAgent,
+                        )
+                    }
+                }
+
                 Composer(
                     state = state,
                     listening = listening,
@@ -326,6 +436,10 @@ fun ChatScreen(
                     onAttachImage = { imagePicker.launch("image/*") },
                     onAttachFile = { filePicker.launch("*/*") },
                     onRemoveAttachment = chat::removeAttachment,
+                    onOpenAttachment = { draft -> draft.part?.let { previewPart = it } },
+                    onAttachmentError = { draft -> chat.showAttachmentError(draft.id) },
+                    onPasteImage = chat::pasteImage,
+                    partialVoice = partialVoice,
                     onVoice = {
                         val granted = ContextCompat.checkSelfPermission(
                             context,
@@ -450,6 +564,18 @@ fun ChatScreen(
 
     if (state.showPrivacyNotice) {
         PrivacyNoticeSheet(onAccept = chat::acceptPrivacyNotice)
+    }
+
+    state.attachmentNoticeProvider?.let { provider ->
+        AttachmentNoticeSheet(
+            provider = provider,
+            onSend = chat::confirmAttachmentNotice,
+            onCancel = chat::cancelAttachmentNotice,
+        )
+    }
+
+    previewPart?.let { part ->
+        AttachmentPreviewDialog(part = part, onDismiss = { previewPart = null })
     }
 
     pendingLink?.let { url ->
@@ -1187,6 +1313,64 @@ private fun CommandFillDialog(
             }
         },
     )
+}
+
+/** A page of older messages, loaded on request so a long chat stays smooth. */
+@Composable
+private fun LoadEarlierRow(count: Int, onClick: () -> Unit) {
+    val palette = AgentTheme.palette
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(min = 48.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(palette.c1)
+            .border(1.dp, palette.c3, RoundedCornerShape(12.dp))
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            text = stringResource(R.string.chat_load_earlier, count),
+            fontSize = 12.sp,
+            color = palette.c4,
+        )
+    }
+}
+
+/** Shown once per cloud provider, the first time an attachment is sent to it. */
+@Composable
+private fun AttachmentNoticeSheet(
+    provider: String,
+    onSend: () -> Unit,
+    onCancel: () -> Unit,
+) {
+    val palette = AgentTheme.palette
+    AgentSheet(onDismiss = onCancel) {
+        Text(
+            text = stringResource(R.string.attachment_notice_title),
+            fontSize = 16.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = palette.c5,
+        )
+        Text(
+            text = stringResource(R.string.attachment_notice_body, provider),
+            fontSize = 13.sp,
+            lineHeight = 20.sp,
+            color = palette.c4,
+            modifier = Modifier.padding(top = 8.dp),
+        )
+        PrimaryButton(
+            text = stringResource(R.string.attachment_notice_send),
+            modifier = Modifier.padding(top = 14.dp),
+            onClick = onSend,
+        )
+        PrimaryButton(
+            text = stringResource(R.string.cancel),
+            height = 44.dp,
+            modifier = Modifier.padding(top = 6.dp),
+            onClick = onCancel,
+        )
+    }
 }
 
 @Composable

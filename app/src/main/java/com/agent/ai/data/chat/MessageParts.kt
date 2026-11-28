@@ -43,12 +43,39 @@ sealed interface MessagePart {
         override val type: String get() = TYPE_FILE
     }
 
+    /**
+     * One tool call the model made, with its result. It is a part of the message, so the
+     * card survives scrolling, rotation and a restart.
+     */
+    data class ToolCall(
+        val id: String,
+        val name: String,
+        val arguments: String,
+        val status: String = ToolStatus.WAITING,
+        val output: String = "",
+        val diff: String = "",
+        val backupPath: String? = null,
+        val approvedBy: String = "",
+    ) : MessagePart {
+        override val type: String get() = TYPE_TOOL
+    }
+
     companion object {
         const val TYPE_TEXT = "text"
         const val TYPE_REASONING = "reasoning"
         const val TYPE_IMAGE = "image"
         const val TYPE_FILE = "file"
+        const val TYPE_TOOL = "tool"
     }
+}
+
+/** The states a tool card can be in. */
+object ToolStatus {
+    const val WAITING = "waiting"
+    const val RUNNING = "running"
+    const val DONE = "done"
+    const val FAILED = "failed"
+    const val REJECTED = "rejected"
 }
 
 /** JSON encoding for [MessagePart]. Hand written, so no serializer plugin is needed. */
@@ -88,6 +115,18 @@ object MessageParts {
                         put("size", part.size)
                         put("extracted", part.extracted)
                     }
+
+                    is MessagePart.ToolCall -> buildJsonObject {
+                        put("type", part.type)
+                        put("id", part.id)
+                        put("name", part.name)
+                        put("arguments", part.arguments)
+                        put("status", part.status)
+                        put("output", part.output)
+                        put("diff", part.diff)
+                        put("backupPath", part.backupPath)
+                        put("approvedBy", part.approvedBy)
+                    }
                 }
             )
         }
@@ -123,6 +162,17 @@ object MessageParts {
                     extracted = obj.str("extracted").orEmpty(),
                 )
 
+                MessagePart.TYPE_TOOL -> MessagePart.ToolCall(
+                    id = obj.str("id").orEmpty(),
+                    name = obj.str("name").orEmpty(),
+                    arguments = obj.str("arguments").orEmpty(),
+                    status = obj.str("status") ?: ToolStatus.DONE,
+                    output = obj.str("output").orEmpty(),
+                    diff = obj.str("diff").orEmpty(),
+                    backupPath = obj.str("backupPath"),
+                    approvedBy = obj.str("approvedBy").orEmpty(),
+                )
+
                 else -> null
             }
         }
@@ -143,6 +193,9 @@ object MessageParts {
 
     fun files(parts: List<MessagePart>): List<MessagePart.File> =
         parts.filterIsInstance<MessagePart.File>()
+
+    fun tools(parts: List<MessagePart>): List<MessagePart.ToolCall> =
+        parts.filterIsInstance<MessagePart.ToolCall>()
 
     private fun JsonObject.str(key: String): String? =
         (this[key] as? JsonPrimitive)?.takeIf { it.isString }?.content

@@ -3,12 +3,19 @@ package com.agent.ai.providers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.collect
 
-/** Who wrote a message. Tool messages are stored but not sent back in this phase. */
+/** Who wrote a message. Tool messages carry one tool result back to the model. */
 enum class Role(val wire: String) {
     System("system"),
     User("user"),
     Assistant("assistant"),
+    Tool("tool"),
 }
+
+/** One function the model may call, in the OpenAI compatible shape. */
+data class ToolSpec(val name: String, val description: String, val parameters: String)
+
+/** A call the model made, ready to send back in the next request. */
+data class WireToolCall(val id: String, val name: String, val arguments: String)
 
 /**
  * One message in the wire format sent to the gateway. [images] holds `data:` URLs, so a
@@ -18,6 +25,9 @@ data class WireMessage(
     val role: Role,
     val content: String,
     val images: List<String> = emptyList(),
+    val toolCalls: List<WireToolCall> = emptyList(),
+    /** Set on a [Role.Tool] message: which call this answers. */
+    val toolCallId: String? = null,
 )
 
 /** A ready to send chat request. */
@@ -28,6 +38,8 @@ data class ChatRequest(
     val temperature: Double? = null,
     /** Sent only when the model reports reasoning support. */
     val reasoning: Boolean = false,
+    /** Offered only when the model reports tool support and the project is attached. */
+    val tools: List<ToolSpec> = emptyList(),
 )
 
 /** What a model can do. Unknown or unreported means not supported. */
@@ -86,7 +98,13 @@ sealed interface ProviderEvent {
     /** Thinking tokens, kept as their own part and never sent back. */
     data class ReasoningDelta(val text: String) : ProviderEvent
 
-    data class ToolCall(val id: String?, val name: String, val arguments: String) : ProviderEvent
+    /** A fragment of a tool call; [index] joins the pieces of one call across chunks. */
+    data class ToolCall(
+        val id: String?,
+        val name: String,
+        val arguments: String,
+        val index: Int = 0,
+    ) : ProviderEvent
 
     /** [truncated] is true when the provider stopped at the token limit, not at the end. */
     data class Finished(val usage: Usage?, val truncated: Boolean = false) : ProviderEvent

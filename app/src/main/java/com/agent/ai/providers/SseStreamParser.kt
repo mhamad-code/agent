@@ -74,6 +74,7 @@ object SseStreamParser {
                     id = tool.string("id"),
                     name = function.string("name").orEmpty(),
                     arguments = function.string("arguments").orEmpty(),
+                    index = (tool["index"] as? JsonPrimitive)?.content?.toIntOrNull() ?: 0,
                 )
             }
         }

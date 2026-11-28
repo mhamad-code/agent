@@ -68,6 +68,7 @@ object ContextBudget {
             is MessagePart.Reasoning -> estimate(part.text) / 2
             is MessagePart.Image -> 850
             is MessagePart.File -> estimate(part.extracted) + 20
+            is MessagePart.ToolCall -> estimate(part.arguments) + estimate(part.output) + 12
         }
     }
 
@@ -87,6 +88,7 @@ object ContextBudget {
                 when (part) {
                     is MessagePart.Image -> 850
                     is MessagePart.File -> estimate(part.extracted)
+                    is MessagePart.ToolCall -> estimate(part.output)
                     else -> 0
                 }
             }

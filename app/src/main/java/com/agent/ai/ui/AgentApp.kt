@@ -32,6 +32,7 @@ import com.agent.ai.ui.screens.AccountsScreen
 import com.agent.ai.ui.screens.AppearanceScreen
 import com.agent.ai.ui.screens.BackupScreen
 import com.agent.ai.ui.screens.CheckpointsScreen
+import com.agent.ai.ui.screens.DiagnosticsScreen
 import com.agent.ai.ui.screens.CodeScreen
 import com.agent.ai.ui.screens.CommandsScreen
 import com.agent.ai.ui.screens.GitScreen
@@ -50,11 +51,15 @@ import com.agent.ai.ui.screens.SecurityScreen
 import com.agent.ai.ui.screens.SettingsScreen
 import com.agent.ai.ui.screens.SkillsScreen
 import com.agent.ai.ui.screens.SubagentsScreen
+import com.agent.ai.ui.screens.TerminalScreen
 import com.agent.ai.ui.screens.ToolsSheet
+import com.agent.ai.ui.screens.UpdateAvailableDialog
+import com.agent.ai.ui.screens.UpdatesScreen
 import com.agent.ai.ui.screens.UsageScreen
 import com.agent.ai.ui.screens.WelcomeScreen
 import com.agent.ai.ui.screens.WorkspaceScreen
 import com.agent.ai.ui.theme.AgentTheme
+import com.agent.ai.updates.UpdatesViewModel
 
 /** Subpages slide horizontally by 30 percent of the width with a fade, over 300ms. */
 private const val TransitionMs = 300
@@ -63,9 +68,11 @@ private const val TransitionMs = 300
 fun AgentApp(
     appearance: AppearanceViewModel = viewModel(),
     chat: ChatViewModel = viewModel(),
+    updates: UpdatesViewModel = viewModel(),
 ) {
     val settings by appearance.settings.collectAsStateWithLifecycle()
     val chatState by chat.state.collectAsStateWithLifecycle()
+    val updateState by updates.state.collectAsStateWithLifecycle()
     val context = LocalContext.current
 
     // Reduce motion also follows the system animation scale (0 means animations are off).
@@ -121,6 +128,7 @@ fun AgentApp(
                             onNavigate = navigate,
                             reduceMotion = reduceMotion,
                             onReduceMotion = appearance::setReduceMotion,
+                            onOpenUpdates = { navigate(Routes.Updates) },
                         )
                     }
                     composable(Routes.Welcome) {
@@ -155,10 +163,45 @@ fun AgentApp(
                     composable(Routes.Security) {
                         SecurityScreen(onBack = back, onOpenLock = { navigate(Routes.Lock) })
                     }
-                    composable(Routes.Workspace) { WorkspaceScreen(onBack = back) }
+                    composable(Routes.Workspace) {
+                        WorkspaceScreen(
+                            onBack = back,
+                            onOpenTerminal = { navigate(Routes.Terminal) },
+                            onOpenDiagnostics = { navigate(Routes.Diagnostics) },
+                        )
+                    }
+                    composable(Routes.Terminal) {
+                        TerminalScreen(
+                            onBack = back,
+                            onOpenDiagnostics = { navigate(Routes.Diagnostics) },
+                        )
+                    }
+                    composable(Routes.Diagnostics) { DiagnosticsScreen(onBack = back) }
                     composable(Routes.Backup) { BackupScreen(onBack = back) }
                     composable(Routes.About) {
-                        AboutScreen(onBack = back, onOpenWelcome = { navigate(Routes.Welcome) })
+                        AboutScreen(
+                            onBack = back,
+                            onOpenWelcome = { navigate(Routes.Welcome) },
+                            onOpenUpdates = { navigate(Routes.Updates) },
+                        )
+                    }
+                    composable(Routes.Updates) {
+                        androidx.compose.runtime.LaunchedEffect(Unit) { updates.loadReleases() }
+                        UpdatesScreen(
+                            state = updateState,
+                            onBack = back,
+                            onCheck = { updates.check(force = true) },
+                            onUpdate = updates::startUpdate,
+                            onSkip = updates::skipVersion,
+                            onClearSkip = updates::clearSkip,
+                            onCancelDownload = updates::cancelDownload,
+                            onInstall = updates::installDownloaded,
+                            onOpenInstallSettings = updates::openInstallPermission,
+                            onOpenReleases = updates::openReleases,
+                            onMirrorChange = updates::setMirror,
+                            onMirrorReset = updates::resetMirror,
+                            onDismissMessage = updates::consumeMessage,
+                        )
                     }
                     composable(Routes.Commands) { CommandsScreen(chat = chat, onBack = back) }
                     composable(Routes.Git) { GitScreen(onBack = back) }
@@ -176,6 +219,18 @@ fun AgentApp(
                     }
                     composable(Routes.Subagents) { SubagentsScreen(onBack = back) }
                     composable(Routes.Usage) { UsageScreen(onBack = back) }
+                }
+
+                updateState.offered?.let { manifest ->
+                    if (updateState.dialogVisible) {
+                        UpdateAvailableDialog(
+                            manifest = manifest,
+                            downloading = updateState.downloading,
+                            onUpdate = updates::startUpdate,
+                            onLater = updates::later,
+                            onSkip = updates::skipVersion,
+                        )
+                    }
                 }
 
                 when (sheet) {

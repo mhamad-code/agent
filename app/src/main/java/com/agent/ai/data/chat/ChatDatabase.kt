@@ -18,6 +18,13 @@ val MIGRATION_1_2 = object : Migration(1, 2) {
     }
 }
 
+/** Version 3 adds the table that records every tool call the agent made. */
+val MIGRATION_2_3 = object : Migration(2, 3) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        ChatMigrationSql.activityStatements.forEach(db::execSQL)
+    }
+}
+
 @Database(
     entities = [
         ConversationEntity::class,
@@ -27,8 +34,9 @@ val MIGRATION_1_2 = object : Migration(1, 2) {
         MemoryEntity::class,
         SlashCommandEntity::class,
         MessageFtsEntity::class,
+        ToolActivityEntity::class,
     ],
-    version = 2,
+    version = 3,
     exportSchema = true,
 )
 abstract class ChatDatabase : RoomDatabase() {
@@ -45,7 +53,7 @@ abstract class ChatDatabase : RoomDatabase() {
                 ChatDatabase::class.java,
                 "agent_chat.db",
             )
-                .addMigrations(MIGRATION_1_2)
+                .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
                 .build()
                 .also { instance = it }
         }

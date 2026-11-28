@@ -109,6 +109,14 @@ object ChatExporter {
                             put("size", part.size)
                             put("extracted", part.extracted)
                         }
+
+                        is MessagePart.ToolCall -> {
+                            put("id", part.id)
+                            put("name", part.name)
+                            put("arguments", part.arguments)
+                            put("status", part.status)
+                            put("output", part.output)
+                        }
                     }
                 }
             )

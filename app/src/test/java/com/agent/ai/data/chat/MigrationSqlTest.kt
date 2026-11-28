@@ -127,6 +127,28 @@ class MigrationSqlTest {
     }
 
     @Test
+    fun `version 3 adds the agent activity log without touching messages`() {
+        migrate()
+        db.createStatement().use { statement ->
+            ChatMigrationSql.activityStatements.forEach { statement.execute(it) }
+            statement.execute(
+                "INSERT INTO tool_activity VALUES ('a1', 5, 'read_file', 'a.txt', 'hello', 'automatic', 1)"
+            )
+            statement.executeQuery("SELECT tool, approvedBy, ok FROM tool_activity").use { rows ->
+                assertTrue(rows.next())
+                assertEquals("read_file", rows.getString(1))
+                assertEquals("automatic", rows.getString(2))
+                assertEquals(1, rows.getInt(3))
+            }
+            // The tool calls themselves live inside the message parts, so nothing moved.
+            statement.executeQuery("SELECT COUNT(*) FROM messages").use { rows ->
+                rows.next()
+                assertEquals(3, rows.getInt(1))
+            }
+        }
+    }
+
+    @Test
     fun `the full text index is filled, so old chats are searchable`() {
         migrate()
         db.createStatement().use { statement ->

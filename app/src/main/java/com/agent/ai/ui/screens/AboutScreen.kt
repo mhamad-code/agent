@@ -30,6 +30,7 @@ import com.agent.ai.ui.theme.AgentTheme
 fun AboutScreen(
     onBack: () -> Unit,
     onOpenWelcome: () -> Unit,
+    onOpenUpdates: () -> Unit = {},
 ) {
     val palette = AgentTheme.palette
 
@@ -65,7 +66,7 @@ fun AboutScreen(
             PanelDivider()
             AboutRow("Free model terms", null) { }
             PanelDivider()
-            AboutRow("Check for updates", null) { }
+            AboutRow(stringResource(R.string.updates_title), null, onOpenUpdates)
         }
     }
 }
